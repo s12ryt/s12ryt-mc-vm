@@ -61,3 +61,43 @@ jobs:
             genisoimage --version
             test -s /plugins/mc-vm.jar
           '
+
+  paper-compatibility:
+    name: Paper ${{ matrix.minecraft }} / Java ${{ matrix.java }}
+    needs: java
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { minecraft: '1.8.8', java: '8', build: '445' }
+          - { minecraft: '1.12.2', java: '11', build: '1620' }
+          - { minecraft: '1.16.5', java: '16', build: '794' }
+          - { minecraft: '1.18.2', java: '17', build: '388' }
+          - { minecraft: '1.21.4', java: '21', build: '232' }
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/download-artifact@v4
+        with:
+          name: mc-vm-plugin
+          path: target
+      - name: Test startup verifier
+        run: bash src/test/sh/verify-paper-startup-test.sh
+      - name: Start Paper
+        run: |
+          test -s target/mc-vm-1.0.0.jar
+          docker run -d --name mcvm-paper \
+            -e EULA=TRUE -e TYPE=PAPER \
+            -e VERSION='${{ matrix.minecraft }}' -e PAPER_BUILD='${{ matrix.build }}' \
+            -e MEMORY=2G -e ONLINE_MODE=FALSE \
+            -v "$PWD/target/mc-vm-1.0.0.jar:/plugins/mc-vm.jar:ro" \
+            'itzg/minecraft-server:java${{ matrix.java }}'
+      - name: Verify Minecraft version and plugin startup
+        run: bash scripts/verify-paper-startup.sh mcvm-paper '${{ matrix.minecraft }}'
+      - name: Startup diagnostics
+        if: failure()
+        run: docker logs --tail=200 mcvm-paper || true
+      - name: Stop Paper
+        if: always()
+        run: docker rm -f mcvm-paper || true
