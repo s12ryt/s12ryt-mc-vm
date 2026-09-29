@@ -156,14 +156,14 @@ public final class CoreTests {
     private static void pluginRejectsMissingKey() {
         McVmPlugin plugin = new McVmPlugin();
         plugin.onEnable();
-        truth("no job without key", plugin.getServer().getScheduler().pending == null);
+        truth("no job without key", plugin.pendingTask() == null);
     }
 
     private static void pluginSchedules() {
         McVmPlugin plugin = new McVmPlugin();
         plugin.getConfig().key = KEY;
         plugin.onEnable();
-        truth("async job scheduled", plugin.getServer().getScheduler().pending != null);
+        truth("async job scheduled", plugin.pendingTask() != null);
     }
 
     private static DebianImageSource.DownloadClient client(byte[] image, String sums) {

@@ -1,3 +1,3 @@
 package org.bukkit.scheduler;
 
-public class BukkitTask { }
+public interface BukkitTask { }
