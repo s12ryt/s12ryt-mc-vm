@@ -1,0 +1,5 @@
+# Add one SSH public key, restart the server, and keep the VM volume persistent.
+ssh-public-key: ''
+memory-mb: 1024
+cpus: 1
+ssh-port: 2222

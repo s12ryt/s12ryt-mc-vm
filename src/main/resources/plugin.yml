@@ -1,0 +1,4 @@
+name: McVm
+version: 1.0.0
+main: tw.cute.mcvm.McVmPlugin
+description: Boot a persistent Debian VM from a Paper server in Docker
