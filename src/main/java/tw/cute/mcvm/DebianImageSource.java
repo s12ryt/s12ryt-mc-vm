@@ -23,6 +23,10 @@ public final class DebianImageSource implements VmProvisioner.Image {
         InputStream open(URL url) throws IOException;
     }
 
+    interface Connections {
+        HttpURLConnection open(URL url) throws IOException;
+    }
+
     private final DownloadClient client;
 
     public DebianImageSource() {
@@ -95,15 +99,33 @@ public final class DebianImageSource implements VmProvisioner.Image {
         if (!"https".equals(url.getProtocol()) || !"cloud.debian.org".equals(url.getHost())) {
             throw new IOException("Only official Debian HTTPS downloads are supported");
         }
-        HttpURLConnection connection = (HttpURLConnection) url.openConnection();
-        connection.setConnectTimeout(15000);
-        connection.setReadTimeout(30000);
-        connection.setInstanceFollowRedirects(false);
-        if (connection.getResponseCode() != 200) {
-            int status = connection.getResponseCode();
-            connection.disconnect();
-            throw new IOException("Debian download HTTP " + status);
+        return openOfficial(url, target -> (HttpURLConnection) target.openConnection());
+    }
+
+    static InputStream openOfficial(URL url, Connections connections) throws IOException {
+        if (!"https".equals(url.getProtocol()) || !"cloud.debian.org".equals(url.getHost())) {
+            throw new IOException("Only official Debian HTTPS downloads are supported");
         }
-        return connection.getInputStream();
+        for (int redirects = 0; redirects <= 5; redirects++) {
+            HttpURLConnection connection = connections.open(url);
+            connection.setConnectTimeout(15000);
+            connection.setReadTimeout(30000);
+            connection.setInstanceFollowRedirects(false);
+            int status = connection.getResponseCode();
+            if (status == 200) return connection.getInputStream();
+            if (status != 301 && status != 302 && status != 303 && status != 307 && status != 308) {
+                connection.disconnect();
+                throw new IOException("Debian download HTTP " + status);
+            }
+            String location = connection.getHeaderField("Location");
+            connection.disconnect();
+            if (location == null || redirects == 5) throw new IOException("Debian image redirect invalid or exceeded limit");
+            url = new URL(url, location);
+            if (!"https".equals(url.getProtocol()) || url.getUserInfo() != null
+                    || (url.getPort() != -1 && url.getPort() != 443)) {
+                throw new IOException("Debian image redirect must use HTTPS");
+            }
+        }
+        throw new IOException("Debian image redirect exceeded limit");
     }
 }

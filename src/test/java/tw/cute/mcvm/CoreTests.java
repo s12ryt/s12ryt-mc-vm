@@ -3,6 +3,7 @@ package tw.cute.mcvm;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -21,6 +22,8 @@ public final class CoreTests {
         check("settings reject missing key and invalid resources", CoreTests::settingsRejectInvalid);
         check("image verifies Debian checksum", CoreTests::imageVerifiesChecksum);
         check("image refuses mismatched hash and partial data", CoreTests::imageRejectsInvalid);
+        check("official image follows HTTPS mirror redirects", CoreTests::officialImageRedirect);
+        check("official image rejects insecure and looping redirects", CoreTests::officialImageRejectsRedirects);
         check("malformed checksum is reported as IO failure", CoreTests::malformedChecksum);
         check("first boot creates seed, disk and starts TCG", CoreTests::firstBoot);
         check("seed uses absolute files independent of process directory", CoreTests::seedPaths);
@@ -60,6 +63,50 @@ public final class CoreTests {
         truth("mismatched image removed", !Files.exists(path));
         expect(IOException.class, () -> new DebianImageSource(client(content, hash(content) + "  other.qcow2\n")).download(path));
         truth("missing checksum image removed", !Files.exists(path));
+    }
+
+    private static void officialImageRedirect() throws Exception {
+        URL official = new URL(DebianImageSource.BASE + DebianImageSource.IMAGE);
+        URL mirror = new URL("https://mirror.example.org/debian-image.qcow2");
+        List<URL> requests = new ArrayList<URL>();
+        byte[] image = "mirror image".getBytes(StandardCharsets.UTF_8);
+        try (InputStream input = DebianImageSource.openOfficial(official, url -> {
+            requests.add(url);
+            return url.equals(official) ? response(url, 302, mirror.toString(), null)
+                    : response(url, 200, null, image);
+        })) {
+            equal("mirror image bytes", image, readBytes(input));
+        }
+        equal("official then mirror", Arrays.asList(official, mirror), requests);
+    }
+
+    private static void officialImageRejectsRedirects() throws Exception {
+        URL official = new URL(DebianImageSource.BASE + DebianImageSource.IMAGE);
+        expect(IOException.class, () -> DebianImageSource.openOfficial(official,
+                url -> response(url, 302, "http://mirror.example.org/image.qcow2", null)));
+        expect(IOException.class, () -> DebianImageSource.openOfficial(official,
+                url -> response(url, 302, official.toString(), null)));
+        expect(IOException.class, () -> DebianImageSource.openOfficial(official,
+                url -> response(url, 302, null, null)));
+    }
+
+    private static HttpURLConnection response(URL url, int status, String location, byte[] body) {
+        return new HttpURLConnection(url) {
+            public void connect() { }
+            public void disconnect() { }
+            public boolean usingProxy() { return false; }
+            public int getResponseCode() { return status; }
+            public String getHeaderField(String name) { return "Location".equals(name) ? location : null; }
+            public InputStream getInputStream() { return new ByteArrayInputStream(body); }
+        };
+    }
+
+    private static byte[] readBytes(InputStream input) throws IOException {
+        java.io.ByteArrayOutputStream output = new java.io.ByteArrayOutputStream();
+        byte[] buffer = new byte[1024];
+        int count;
+        while ((count = input.read(buffer)) != -1) output.write(buffer, 0, count);
+        return output.toByteArray();
     }
 
     private static void malformedChecksum() throws Exception {
