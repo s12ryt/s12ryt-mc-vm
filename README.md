@@ -4,7 +4,7 @@ Paper 插件在伺服器載入後，於背景下載 Debian 13 amd64 官方 gener
 
 ## 部署
 
-1. 在有 Maven、Docker Compose 的 Linux amd64 主機執行 `mvn test package`，再執行 `docker compose up --build -d`。範例的 Paper 是 1.21.4，Java 21；插件本身編譯為 Java 8 bytecode，未宣稱每一個 Paper 版本都已實測。
+1. 在有 Maven、Docker Compose 的 Linux amd64 主機執行 `mvn test package`，再執行 `docker compose up --build -d`。範例的 Paper 是 1.21.4，Java 21；插件本身編譯為 Java 8 bytecode。下列 CI 僅抽測五個 Paper 版本，未宣稱每一個版本都已實測。
 2. 初次開服會產生 `data/plugins/McVm/config.yml`；將 `ssh-public-key` 改為單一 `ssh-ed25519` 或 `ssh-rsa` 公鑰，重啟 Minecraft 服務。不要填私鑰。
 3. 查閱 Minecraft 容器日誌，首次會下載數百 MB 映像；成功後在 Docker 主機上執行 `ssh -p 2222 debian@127.0.0.1`，使用對應私鑰。雲端初始化及 SSH 啟動可能還需數分鐘。QEMU 序列輸出存於 `data/plugins/McVm/vm/serial.log`，工具輸出存於同目錄 `commands.log`。
 
@@ -15,5 +15,7 @@ SSH 在 Docker 容器內監聽 2222，Compose 僅將其公開到主機回環介�
 ## 持續整合
 
 推送與 pull request 會在 Java 8、17、21 上執行 `mvn verify`，確認插件 JAR 是 Java 8 bytecode、含 `plugin.yml`、不含 Bukkit 測試替身，再建置 Docker 映像並檢查 QEMU 與 ISO 工具。
+
+此外，五版本矩陣會在真實 Paper 容器中確認 Minecraft 版本、McVm 的 `onEnable` 有執行且伺服器完成啟動：1.8.8 / Java 8、1.12.2 / Java 11、1.16.5 / Java 16、1.18.2 / Java 17、1.21.4 / Java 21。矩陣刻意使用尚未填寫 SSH 公鑰的預設設定，驗證設定錯誤有明確日誌；不會在每個版本下載或啟動 Debian VM。
 
 GitHub Actions 的 **Debian VM integration** 可手動執行。它在臨時 Linux runner 上產生專用 SSH 密鑰、建立 Paper 容器、下載並校驗 Debian 映像、透過 SSH 確認 VM 已開機，然後重啟 Minecraft 容器並確認客體內的檔案仍在。此工作可能需要數十分鐘，依賴 Debian 與 Paper 的上游下載；失敗時 Actions 日誌會輸出容器、QEMU 診斷。不會提交私鑰或 VM 資料，亦不會將 Docker 映像自動發佈到 registry。
