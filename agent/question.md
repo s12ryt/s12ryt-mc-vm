@@ -21,3 +21,8 @@
 - 一般 push / pull request：Java 多版本測試、Java 8 bytecode JAR 打包、Docker 映像建置與 QEMU 工具煙霧測試。
 - 手動觸發整合驗收：在 Linux Docker 裡啟動 Paper 插件，下載官方 Debian 映像、啟動 TCG VM、透過暫時產生的 SSH 密鑰登入，重啟容器後確認磁碟資料保留。
 - CI 不提交私鑰或產生的 VM 資料；持續整合失敗要保留診斷資訊，報告未完成的遠端驗收。
+
+## 五個 MC 世代 CI（2026-09-30）
+
+- 依用戶要求，從不同 MC 世代抽樣 1.8.8、1.12.2、1.16.5、1.18.2、1.21.4；推送與 pull request 時在各自相容 Java 上啟動 Paper 並驗證插件 `onEnable`、Minecraft 版本與伺服器完成啟動。
+- 五版本矩陣採未設定 SSH 公鑰的預設設定，以確認插件啟動與設定錯誤處理；不代表五版本皆已實測 Debian VM。真實 Debian TCG 開機、SSH 及重啟持久性仍由獨立的手動整合 workflow 驗收。
